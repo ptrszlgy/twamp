@@ -15,14 +15,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/golang/glog"
 )
 
 var log logr.Logger
-
-func init() {
-	log.WithName("server")
-}
 
 const (
 	Unauthenticated = 1 << iota
@@ -140,6 +135,10 @@ type TestResponse struct {
 
 var wg sync.WaitGroup
 
+func SetLogger(logger logr.Logger) {
+	log = logger.WithName("server")
+}
+
 func ServeTwamp(listen string) error {
 	sock, err := net.Listen("tcp", listen)
 	if err != nil {
@@ -167,8 +166,8 @@ func handleClient(conn net.Conn, udp_port uint16) {
 	defer wg.Done()
 	err := serveClient(conn, udp_port)
 	if err != nil {
-		glog.Error(err)
-		//cleanup()
+		log.Error(err, "client connection error")
+		// TODO cleanup()
 	}
 
 }
@@ -176,7 +175,7 @@ func handleClient(conn net.Conn, udp_port uint16) {
 func serveClient(conn net.Conn, udp_port uint16) error {
 	defer conn.Close()
 
-	glog.Infoln("Handling control connection from client", conn.RemoteAddr())
+	log.Info("Handling control connection", "client", conn.RemoteAddr())
 
 	err := sendServerGreeting(conn)
 	if err != nil {
@@ -225,10 +224,9 @@ func serveClient(conn net.Conn, udp_port uint16) error {
 	_, err = receiveStopSessions(conn)
 	if err != nil {
 		return fmt.Errorf("Error receiving stop sessions: %s", err)
-		Cleanup()
 	}
 
-	glog.Infoln("Finished control connection from client", conn.RemoteAddr())
+	log.Info("Finished control connection", "client", conn.RemoteAddr())
 	return nil
 }
 
@@ -524,7 +522,7 @@ func startReflector(udp_port uint16) (*net.UDPConn, error) {
 func handleReflector(conn *net.UDPConn, test_done chan bool) {
 	err := runReflector(conn, test_done)
 	if err != nil {
-		glog.Error(err)
+		log.Error(err, "could not run reflector")
 	}
 }
 
@@ -534,7 +532,7 @@ func runReflector(conn *net.UDPConn, test_done chan bool) error {
 	timeout := 10 * time.Second
 	defer conn.Close()
 
-	glog.Infoln("Handling test session on port", conn.LocalAddr())
+	log.Info("Handling test session", "port", conn.LocalAddr())
 	for {
 		err := conn.SetReadDeadline(time.Now().Add(timeout))
 		if err != nil {
@@ -545,10 +543,10 @@ func runReflector(conn *net.UDPConn, test_done chan bool) error {
 		if err != nil {
 			if err, ok := err.(net.Error); ok && err.Timeout() {
 				if _, ok := <-test_done; !ok {
-					glog.Infoln("Finished test session on port", conn.LocalAddr())
+					log.Info("Finished test session", "port", conn.LocalAddr())
 					return nil
 				} else {
-					glog.V(2).Infoln("Timeout waiting for test packet:", err)
+					log.Error(err, "timeout waiting for test packet")
 					continue
 				}
 			}
@@ -570,15 +568,10 @@ func runReflector(conn *net.UDPConn, test_done chan bool) error {
 	}
 }
 
-func Cleanup() {
-	glog.Flush()
-}
-
 func handleSignals(c chan os.Signal) {
 	sig := <-c
-	glog.Infoln("Exiting, got signal:", sig)
+	log.Info("Exiting", "got signal", sig)
 
-	Cleanup()
 	os.Exit(0)
 }
 

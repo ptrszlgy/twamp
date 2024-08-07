@@ -1,4 +1,4 @@
-package twamp
+package client
 
 import (
 	"encoding/binary"
@@ -57,7 +57,7 @@ func (s *TwampSession) Write(buf []byte) {
 	s.GetConnection().Write(buf)
 }
 
-func (s *TwampSession) CreateTest() (*TwampTest, error) {
+func (s *TwampSession) CreateTest(socket string) (*TwampTest, error) {
 	var pdu []byte = make([]byte, 32)
 	pdu[0] = 2
 
@@ -81,7 +81,7 @@ func (s *TwampSession) CreateTest() (*TwampTest, error) {
 	}
 
 	test := &TwampTest{session: s, results: make(map[uint32]*TwampResults)}
-	remoteAddr, err := test.RemoteAddr()
+	remoteAddr, err := test.RemoteAddr(socket)
 	if err != nil {
 		return nil, err
 	}
